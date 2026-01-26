@@ -1,10 +1,18 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { ArrowLeft, Mail, Phone, MapPin } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import {
+  Mail,
+  Phone,
+  MapPin,
+  Search,
+  Clock,
+  MessageCircle,
+  ChevronDown,
+  Filter,
+  ClipboardList
+} from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface Quote {
   id: string
@@ -19,27 +27,23 @@ interface Quote {
 }
 
 export default function QuotesPage() {
-  const router = useRouter()
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_token')
-    if (!token) {
-      router.push('/admin/login')
-      return
-    }
     fetchQuotes()
-  }, [router])
+  }, [])
 
   const fetchQuotes = async () => {
     try {
+      setLoading(true)
       const response = await fetch('/api/quotes')
       const data = await response.json()
       setQuotes(data.quotes || [])
     } catch (err) {
-      console.error('[v0] Error fetching quotes:', err)
+      console.error('[Admin] Error fetching quotes:', err)
     } finally {
       setLoading(false)
     }
@@ -56,144 +60,175 @@ export default function QuotesPage() {
     })
   }
 
+  const filteredQuotes = quotes.filter(q =>
+    q.customer_name.toLowerCase().includes(search.toLowerCase()) ||
+    q.sub_location.toLowerCase().includes(search.toLowerCase())
+  )
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-white border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/admin/dashboard">
-              <Button variant="outline" size="sm" className="p-2 bg-transparent">
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-3xl font-heading font-bold text-foreground">
-                الطلبات
-              </h1>
-              <p className="text-muted-foreground">
-                جميع طلبات الحصول على عرض أسعار
-              </p>
-            </div>
-          </div>
+    <div className="space-y-8 pb-12 font-body text-right" dir="rtl">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-black text-foreground mb-2">طلبات النقل</h1>
+          <p className="text-muted-foreground font-bold tracking-tight">إدارة طلبات عرض الأسعار الواردة من العملاء</p>
+        </div>
+
+        <div className="relative group w-full md:w-96">
+          <Search className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          <input
+            type="text"
+            placeholder="البحث بالاسم أو المنطقة..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-6 pr-14 py-4 bg-white border border-border rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/10 hover:border-primary/30 transition-all font-bold shadow-sm"
+          />
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 py-12">
+      {/* Quick Actions / Filters */}
+      <div className="flex flex-wrap gap-4">
+        <button className="flex items-center gap-2 px-6 py-3 bg-white border border-border rounded-xl font-bold text-sm text-foreground hover:bg-muted transition-all">
+          <Filter className="w-4 h-4" />
+          تصفية حسب الحالة
+        </button>
+        <div className="flex-1" />
+        <p className="text-muted-foreground text-sm font-bold flex items-center gap-2">
+          <span className="w-2 h-2 bg-primary rounded-full" />
+          إجمالي الطلبات: {filteredQuotes.length}
+        </p>
+      </div>
+
+      {/* Quotes List */}
+      <div className="space-y-4">
         {loading ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">جاري تحميل البيانات...</p>
+          <div className="grid gap-4 opacity-50">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-24 bg-white rounded-3xl animate-pulse border border-border" />
+            ))}
           </div>
-        ) : quotes.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl border border-border">
-            <p className="text-muted-foreground">لا توجد طلبات حتى الآن</p>
+        ) : filteredQuotes.length === 0 ? (
+          <div className="text-center py-24 bg-white rounded-[3rem] border border-border shadow-sm">
+            <ClipboardList className="w-16 h-16 text-muted-foreground/20 mx-auto mb-6" />
+            <h3 className="text-2xl font-black text-foreground">لا توجد طلبات</h3>
+            <p className="text-muted-foreground font-bold">لم يتم تلقي أي طلبات بهذا البحث حالياً.</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {quotes.map((quote) => (
-              <div
+          <AnimatePresence mode="popLayout">
+            {filteredQuotes.map((quote) => (
+              <motion.div
                 key={quote.id}
-                className="bg-white rounded-2xl border border-border overflow-hidden hover:shadow-lg transition-all duration-300"
+                layout
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`bg-white rounded-3xl border border-border shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden ${expandedId === quote.id ? 'ring-2 ring-primary ring-offset-4' : ''
+                  }`}
               >
-                {/* Quote Header */}
+                {/* Summary Bar */}
                 <div
-                  onClick={() =>
-                    setExpandedId(expandedId === quote.id ? null : quote.id)
-                  }
-                  className="p-6 cursor-pointer hover:bg-muted/20 transition-colors"
+                  onClick={() => setExpandedId(expandedId === quote.id ? null : quote.id)}
+                  className="p-8 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-6"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-foreground mb-2">
+                  <div className="flex items-center gap-6">
+                    <div className={`p-4 rounded-2xl bg-muted/50 text-foreground group-hover:bg-primary/10 transition-colors`}>
+                      <Mail className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black text-foreground mb-1">
                         {quote.customer_name}
                       </h3>
-                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="w-4 h-4" />
+                      <div className="flex flex-wrap gap-4 text-xs font-bold text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5" />
                           {quote.sub_location}
-                        </div>
-                        <div>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
                           {formatDate(quote.created_at)}
-                        </div>
+                        </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <span className="inline-block px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
-                        {quote.status === 'pending' ? 'معلق' : quote.status}
-                      </span>
-                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <span className="px-4 py-1.5 bg-primary/10 text-primary text-xs font-black rounded-full uppercase tracking-widest">
+                      {quote.status === 'pending' ? 'قيد الانتظار' : quote.status}
+                    </span>
+                    <motion.div
+                      animate={{ rotate: expandedId === quote.id ? 180 : 0 }}
+                      className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground"
+                    >
+                      <ChevronDown className="w-5 h-5" />
+                    </motion.div>
                   </div>
                 </div>
 
-                {/* Quote Details */}
-                {expandedId === quote.id && (
-                  <div className="border-t border-border p-6 bg-muted/20">
-                    <div className="grid md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="text-sm font-semibold text-foreground mb-3">
-                          معلومات الاتصال
-                        </h4>
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <Mail className="w-4 h-4 text-muted-foreground" />
-                            <a
-                              href={`mailto:${quote.customer_email}`}
-                              className="text-primary hover:underline"
-                            >
+                {/* Expanded Details */}
+                <AnimatePresence>
+                  {expandedId === quote.id && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden bg-muted/20 border-t border-border"
+                    >
+                      <div className="p-8 grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div className="space-y-4">
+                          <h4 className="text-sm font-black text-foreground uppercase tracking-widest border-r-4 border-primary pr-3">معلومات التواصل</h4>
+                          <div className="space-y-3">
+                            <a href={`mailto:${quote.customer_email}`} className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors font-bold">
+                              <Mail className="w-4 h-4" />
                               {quote.customer_email}
                             </a>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-4 h-4 text-muted-foreground" />
-                            <a
-                              href={`tel:${quote.customer_phone}`}
-                              className="text-primary hover:underline"
-                            >
+                            <a href={`tel:${quote.customer_phone}`} className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors font-bold">
+                              <Phone className="w-4 h-4" />
                               {quote.customer_phone}
                             </a>
                           </div>
                         </div>
-                      </div>
 
-                      <div>
-                        <h4 className="text-sm font-semibold text-foreground mb-3">
-                          تفاصيل الطلب
-                        </h4>
-                        <div className="space-y-3 text-sm text-foreground/80">
-                          <p>
-                            <span className="font-medium block text-foreground mb-1">
-                              العناصر:
-                            </span>
-                            {quote.items}
-                          </p>
-                          {quote.notes && (
-                            <p>
-                              <span className="font-medium block text-foreground mb-1">
-                                ملاحظات:
-                              </span>
-                              {quote.notes}
+                        <div className="space-y-4">
+                          <h4 className="text-sm font-black text-foreground uppercase tracking-widest border-r-4 border-secondary pr-3">تفاصيل النقل</h4>
+                          <div className="p-5 bg-white rounded-2xl border border-border">
+                            <p className="text-sm font-bold text-foreground leading-relaxed">
+                              {quote.items}
                             </p>
-                          )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-6">
+                          <h4 className="text-sm font-black text-foreground uppercase tracking-widest border-r-4 border-blue-500 pr-3">إجراءات</h4>
+                          <div className="flex flex-col gap-3">
+                            <a
+                              href={`https://wa.me/${quote.customer_phone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center gap-3 px-6 py-4 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-black text-sm transition-all shadow-lg shadow-green-500/20"
+                            >
+                              <MessageCircle className="w-5 h-5" />
+                              تواصل عبر واتساب
+                            </a>
+                            <button className="px-6 py-4 bg-white border border-border text-foreground hover:bg-muted rounded-2xl font-black text-sm transition-all">
+                              تحديث حالة الطلب
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="mt-6 flex gap-3">
-                      <a
-                        href={`https://wa.me/${quote.customer_phone.replace(/\D/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition-colors"
-                      >
-                        تواصل عبر واتساب
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
+                      {quote.notes && (
+                        <div className="px-8 pb-8">
+                          <div className="p-6 bg-amber-50 border border-amber-100 rounded-3xl">
+                            <p className="text-xs font-black text-amber-600 uppercase mb-2">ملاحظات العميل</p>
+                            <p className="text-amber-900/80 font-bold italic">"{quote.notes}"</p>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             ))}
-          </div>
+          </AnimatePresence>
         )}
       </div>
     </div>
